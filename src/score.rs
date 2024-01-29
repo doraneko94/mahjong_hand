@@ -1,8 +1,8 @@
 pub struct Score {
     pub parent: Option<usize>,
     pub children: usize,
-    pub han: usize,
     pub fu: usize,
+    pub han: usize,
 }
 
 fn _marume(x: usize, u: usize) -> usize {
@@ -10,7 +10,7 @@ fn _marume(x: usize, u: usize) -> usize {
 }
 
 impl Score {
-    pub fn new(han: usize, fu: usize, oya: bool) -> Self {
+    pub fn new(fu: usize, han: usize, oya: bool) -> Self {
         let f = _marume(fu, 10);
         let core = if han >= 13 { 8000 }
             else if han >= 11 { 6000 }

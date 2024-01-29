@@ -1,6 +1,9 @@
 use crate::count::Count;
 use crate::index::{index2pai, pai2name, Name};
 use crate::naki::Naki;
+use crate::score::Score;
+
+const ALLGREEN: [Name; 6] = [(2, 1), (2, 2), (2, 3), (2, 5), (2, 7), (3, 5)];
 
 pub struct Hand {
     pub stand: Vec<u8>,
@@ -75,6 +78,39 @@ impl Hand {
     pub fn is_tenpai(&self) -> bool {
         self.to_count().is_tenpai()
     }
+
+    pub fn score(
+        &self,
+        tenhou: bool,
+        reach: bool,
+        double: bool,
+        ippatsu: bool,
+        haitei: bool,
+        rinshan: bool,
+        dora: &[Name],
+        tsumo: Name,
+        ba: usize,
+        cha: usize
+    ) -> Option<Score> {
+        let hc = self.to_count();
+        if !hc.is_agari() { return None; }
+
+        let bai = hc.yakuman(tenhou, tsumo);
+        if bai > 0 {
+            return Some(
+                Score {
+                    parent: if cha == 0 { None } else { Some(16000 * bai) },
+                    children: if cha == 0 { 16000 * bai } else { 8000 * bai },
+                    han: bai,
+                    fu: 0
+                }
+            )
+        }
+        
+        
+
+        None
+    }
 }
 
 impl HandCount {
@@ -127,18 +163,108 @@ impl HandCount {
         self.count.manzu[0] == 0 && self.count.manzu[8] == 0
         && self.count.pinzu[0] == 0 && self.count.pinzu[8] == 0
         && self.count.souzu[0] == 0 && self.count.souzu[8] == 0
-        && self.count.zupai.iter().map(|&zi| zi).sum::<u8>() == 0
+        && self.count.zupai.iter().sum::<u8>() == 0
     }
 
-    pub fn honroutou(&self) -> bool {
-        let mut flg = self.count.manzu[1..8].iter().map(|&i| i).sum::<u8>() == 0
-        && self.count.pinzu[1..8].iter().map(|&i| i).sum::<u8>() == 0
-        && self.count.souzu[1..8].iter().map(|&i| i).sum::<u8>() == 0;
-        for &ki in self.naki.kan.iter() {
-            if ki.0 != 3 && ki.1 != 0 && ki.1 != 8 { flg = false; }
+    pub fn yakuman(&self, tenhou: bool, tsumo: Name) -> usize {
+        let mut ans = if tenhou { 1 } else { 0 };
+
+        // 4kantsu
+        if self.naki.kan.len() == 4 { ans += 1; }
+
+        let mut count = vec![
+            self.count.manzu.to_vec(),
+            self.count.pinzu.to_vec(),
+            self.count.souzu.to_vec(),
+            self.count.zupai.to_vec(),
+        ];
+        // kokushi
+        let mut flg = true;
+        let mut last = (0, 0);
+        for i in 0..3 {
+            for j in [0, 8] {
+                if count[i][j] == 1 {} else if count[i][j] == 2 { last = (i as u8, j); } else { flg = false; }
+            }
         }
-        flg
+        for j in 0..7 {
+            if count[3][j] == 1 {} else if count[3][j] == 2 { last = (3, j); } else { flg = false; }
+        }
+        if flg {
+            ans += 1;
+            if last == tsumo { ans += 1; }
+        }
+        // 9ren
+        let v:[u8; 4] = [
+            if count[0].iter().sum::<u8>() > 0 { 1 } else { 0 },
+            if count[1].iter().sum::<u8>() > 0 { 1 } else { 0 },
+            if count[2].iter().sum::<u8>() > 0 { 1 } else { 0 },
+            if count[3].iter().sum::<u8>() > 0 { 1 } else { 0 }
+        ];
+        if v.iter().sum::<u8>() == 1 && v[3] == 0 {
+            let c = if v[0] == 1 {
+                count[0].clone()
+            } else if v[1] == 1 {
+                count[1].clone()
+            } else {
+                count[2].clone()
+            };
+            flg = true;
+            let mut last = 0;
+            for i in [0, 8] {
+                if c[i] == 3 {} else if c[i] == 4 {
+                    last = i;
+                } else { flg = false; }
+            }
+            for i in 1..8 {
+                if c[i] == 1 {} else if c[i] == 2 {
+                    last = i;
+                } else { flg = false; }
+            }
+            if flg {
+                ans += 1;
+                if last == tsumo.1 { ans += 1; }
+            }
+        }
+        
+        for k in self.naki.kan.iter() {
+            count[k.0 as usize][k.1] += 3;
+        }
+        
+        // all green
+        flg = true;
+        for i in 0..4 {
+            for j in 0..count[i].len() {
+                if count[i][j] > 0 {
+                    if !ALLGREEN.contains(&(i as u8, j)) { flg = false; }
+                }
+            }
+        }
+        if flg { ans += 1; }
+        // daisangen
+        if count[3][4] == 3 && count[3][5] == 3 && count[3][6] == 3 { ans += 1; }
+        // shousushi daisushi
+        let s = count[3][0..4].iter().sum::<u8>();
+        if s >= 11 { ans += 1; }
+        if s == 12 { ans += 1; }
+        // zuiso
+        if (0..3).map(|i| count[i].iter().sum::<u8>()).sum::<u8>() == 0 { ans += 1; }
+        // 4anko
+        flg = true;
+        last = (0, 0);
+        for i in 0..4 {
+            for j in 0..count[i].len() {
+                if count[i][j] == 3 {} else if count[i][j] == 2 {
+                    last = (i as u8, j);
+                } else { flg = false; }
+            }
+        }
+        if flg {
+            ans += 1;
+            if last == tsumo { ans += 1; }
+        }
+        // chinroutou
+        if (0..3).map(|i| count[i][1..8].iter().sum::<u8>()).sum::<u8>() + count[3].iter().sum::<u8>() == 0 { ans += 1; }
+        
+        ans
     }
-
-    pub fn kantsu3(&self) -> bool { self.naki.kan.len() == 3 }
 }
