@@ -1,5 +1,7 @@
+use crate::calc::Calc;
 use crate::count::Count;
 use crate::index::{index2pai, pai2name, Name};
+use crate::mentsu::decompose;
 use crate::naki::Naki;
 use crate::score::Score;
 
@@ -101,15 +103,79 @@ impl Hand {
                 Score {
                     parent: if cha == 0 { None } else { Some(16000 * bai) },
                     children: if cha == 0 { 16000 * bai } else { 8000 * bai },
+                    fu : 0,
                     han: bai,
-                    fu: 0
                 }
             )
         }
         
-        
+        let mut han_base: usize = 1 // tsumo
+        + if reach { 1 } else { 0 }
+        + if double { 1 } else { 0 }
+        + if ippatsu { 1 } else { 0 }
+        + if haitei { 1 } else { 0 }
+        + if rinshan { 1 } else { 0 };
 
-        None
+        let mut count = vec![
+            hc.count.manzu.to_vec(),
+            hc.count.pinzu.to_vec(),
+            hc.count.souzu.to_vec(),
+            hc.count.zupai.to_vec(),
+        ];
+        for k in hc.naki.kan.iter() {
+            count[k.0 as usize][k.1] += 4;
+        }
+        // dora
+        for d in dora.iter() {
+            han_base += count[d.0 as usize][d.1] as usize;
+        }
+        // aka
+        if self.stand.contains(&16) { han_base += 1; }
+        if self.stand.contains(&(36+16)) { han_base += 1; }
+        if self.stand.contains(&(36*2+16)) { han_base += 1; }
+        // isshoku
+        let s = (0..4).map(|i| if count[i].iter().sum::<u8>() > 0 { 1 } else { 0 }).collect::<Vec<u8>>();
+        let js = count[0][0] + count[0][8] + count[1][0] + count[1][8] + count[2][0] + count[2][8] > 0;
+        let ts = (0..3).map(|i| count[i][1..8].iter().sum::<u8>()).sum::<u8>() > 0;
+        if s[0] + s[1] + s[2] == 1 {
+            han_base += 3; // honitsu
+            if s[3] == 0 { han_base += 3; } // chinitsu
+        }
+        if s[3] == 0 && !js { han_base += 1; } // tanyao
+        if !ts { han_base += 2; } // honroutou
+
+        let mut scores = Vec::new();
+        if hc.count.is_7toitsu() {
+            scores.push(Score::new(25, han_base + 2, cha == 0));
+        }
+        let heads = hc.count.find_head();
+        for (hi, c) in heads.iter() {
+            let vms = decompose(c);
+            for vm in vms.iter() {
+                if *hi == tsumo {
+                    match Calc::new(vm, None, hc.naki.clone(), hi.clone(), tsumo, han_base, ba, cha) {
+                        Ok(ca) => { scores.push(ca.score()) }
+                        Err(_) => {}
+                    }
+                }
+                for m in vm.iter() {
+                    if m.mode == tsumo.0 && m.num.contains(&tsumo.1) {
+                        match Calc::new(vm, Some(m.clone()), hc.naki.clone(), hi.clone(), tsumo, han_base, ba, cha) {
+                            Ok(ca) => { scores.push(ca.score()) }
+                            Err(_) => {}
+                        }
+                    }
+                }
+            }
+        }
+        let mut ans = scores[0].clone();
+        for i in 1..scores.len() {
+            if ans.children < scores[i].children {
+                ans = scores[i].clone();
+            }
+        }
+
+        Some(ans)
     }
 }
 

@@ -10,25 +10,23 @@ pub struct Calc {
     head: Name,
     tsumo: Name,
     han_base: usize,
-    yakuman_base: usize,
     ba: usize,
     cha: usize,
 }
 
 impl Calc {
     pub fn new(
-        stand: Vec<Mentsu>,
+        stand: &[Mentsu],
         last: Option<Mentsu>,
         naki: Naki,
         head: Name,
         tsumo: Name,
         han_base: usize,
-        yakuman_base: usize,
         ba: usize,
         cha: usize,
     ) -> Result<Self, ()> {
         if stand.len() + naki.kan.len() != 4 { return Err(()); }
-        Ok(Calc { stand, last, naki, head, tsumo, han_base, yakuman_base, ba, cha })
+        Ok(Calc { stand: stand.to_vec(), last, naki, head, tsumo, han_base, ba, cha })
     }
 
     fn _contain(&self, name: Name) -> bool {
@@ -186,6 +184,5 @@ impl Calc {
 
         h
     }
-
     
 }

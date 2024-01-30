@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Score {
     pub parent: Option<usize>,
     pub children: usize,
@@ -5,13 +6,13 @@ pub struct Score {
     pub han: usize,
 }
 
-fn _marume(x: usize, u: usize) -> usize {
-    (x + u - 1) / u * u
+pub fn marume(x: usize, u: usize) -> usize {
+    if x == 25 && u == 10 { x } else { (x + u - 1) / u * u }
 }
 
 impl Score {
     pub fn new(fu: usize, han: usize, oya: bool) -> Self {
-        let f = _marume(fu, 10);
+        let f = marume(fu, 10);
         let core = if han >= 13 { 8000 }
             else if han >= 11 { 6000 }
             else if han >= 8 { 4000 }
@@ -22,9 +23,9 @@ impl Score {
         };
         
         let (parent, children) = if oya {
-            (None, _marume(core * 2, 100))
+            (None, marume(core * 2, 100))
         } else {
-            (Some(_marume(core * 2, 100)), _marume(core, 100))
+            (Some(marume(core * 2, 100)), marume(core, 100))
         };
         Self { parent, children, han, fu }
     }
